@@ -27,7 +27,7 @@ export function computeDiff(baseline: LineItem[], proposed: LineItem[]): DiffRow
 			rows.push({ sku: b.sku, kind: 'removed', baseline: b });
 			continue;
 		}
-		// First bug here it only checks for unitPrice change and ignores quantity.
+		// First bug here: it only checks for unitPrice change and ignores quantity.
 		const changed = b.unitPrice !== p.unitPrice || b.quantity !== p.quantity;
 		rows.push({ sku: b.sku, kind: changed ? 'changed' : 'unchanged', baseline: b, proposed: p });
 	}
