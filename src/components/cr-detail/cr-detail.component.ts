@@ -1,6 +1,6 @@
 import { Component, Input, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormControl, ReactiveFormsModule } from '@angular/forms';
+import { FormControl, ReactiveFormsModule, AbstractControl } from '@angular/forms';
 import { CrApiService } from '../../api/cr-api.service';
 import { SessionService } from '../../session/session.service';
 import { CrDetail, TimelineEntry } from '../../models/cr.models';
@@ -26,7 +26,10 @@ export class CrDetailComponent implements OnInit {
 	submitting = false;
 	actionError?: string;
 	// TODO: add validation so the form is invalid until a reason is entered.
-	rejectControl = new FormControl('', { nonNullable: true });
+	rejectControl = new FormControl('', {
+		nonNullable: true,
+		validators: [(control: AbstractControl) => (control.value.trim() ? null : { required: true })],
+	});
 
 	constructor(private readonly api: CrApiService, private readonly session: SessionService) {}
 
@@ -59,30 +62,96 @@ export class CrDetailComponent implements OnInit {
 		return this.detail?.audit.slice().sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime()) ?? [];
 	}
 
-    // NOTE: this only looks at the CR status. The UI must also respect the user's permissions.
+	// NOTE: this only looks at the CR status. The UI must also respect the user's permissions.
 	// Second bug here: it doesn't check the user's policies.
 	// 19/9 commit: permission-aware action visibility
-    get canApprove(): boolean {
-        return this.detail?.status === 'PENDING_APPROVAL' && ['cr_a_u', 'cr_a_w', 'cr_a_o'].some(
-        policy => this.session.user.policies.includes(policy)
-    );
-    }
+	get canApprove(): boolean {
+		return (
+			this.detail?.status === 'PENDING_APPROVAL' &&
+			['cr_a_u', 'cr_a_w', 'cr_a_o'].some((policy) => this.session.user.policies.includes(policy))
+		);
+	}
 
-    get canReject(): boolean {
-        return this.canApprove;
-   }
+	get canReject(): boolean {
+		return this.canApprove;
+	}
 	fmt(amount: number): string {
 		return this.detail ? formatMoney(amount, this.detail.currency) : String(amount);
 	}
 
 	async approve(): Promise<void> {
 		// TODO: perform the approve action through the API and reflect the outcome in the view.
-		throw new Error('approve() not implemented');
+		const request = this.detail;
+
+		if (!request || !this.canApprove || this.submitting) {
+			return;
+		}
+
+		this.submitting = true;
+		this.actionError = undefined;
+
+		try {
+			const updated = await this.api.approve(this.session.user, request.id, new Date().toISOString());
+
+			this.state = { status: 'loaded', data: updated };
+		} catch (err) {
+			this.actionError = err instanceof Error ? err.message : 'Approval response failed.';
+
+			try {
+				const refreshed = await this.api.getChangeRequest(this.session.user, request.id);
+
+				this.state = { status: 'loaded', data: refreshed };
+			} catch {
+				this.state = {
+					status: 'error',
+					data: null,
+					error: 'Could not confirm the request status. Please retry loading.',
+				};
+			}
+		} finally {
+			this.submitting = false;
+		}
 	}
 
 	async reject(): Promise<void> {
-		// TODO: require a valid rejectControl, then perform the reject action through the API and
-		//       reflect the outcome in the view.
-		throw new Error('reject() not implemented');
+		const request = this.detail;
+
+		if (!request || !this.canReject || this.submitting) {
+			return;
+		}
+
+		this.rejectControl.markAsTouched();
+
+		if (this.rejectControl.invalid) {
+			return;
+		}
+
+		const reason = this.rejectControl.value.trim();
+
+		this.submitting = true;
+		this.actionError = undefined;
+
+		try {
+			const updated = await this.api.reject(this.session.user, request.id, new Date().toISOString(), reason);
+
+			this.state = { status: 'loaded', data: updated };
+			this.rejectControl.reset();
+		} catch (err) {
+			this.actionError = err instanceof Error ? err.message : 'Rejection response failed.';
+
+			try {
+				const refreshed = await this.api.getChangeRequest(this.session.user, request.id);
+
+				this.state = { status: 'loaded', data: refreshed };
+			} catch {
+				this.state = {
+					status: 'error',
+					data: null,
+					error: 'Could not confirm the request status, please retry loading.',
+				};
+			}
+		} finally {
+			this.submitting = false;
+		}
 	}
 }
