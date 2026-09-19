@@ -1,4 +1,4 @@
-import { Component, Input, OnInit } from '@angular/core';
+import { Component, Input, OnChanges } from '@angular/core'; // replaced OnInit with onChanges
 import { CommonModule } from '@angular/common';
 import { FormControl, ReactiveFormsModule, AbstractControl } from '@angular/forms';
 import { CrApiService } from '../../api/cr-api.service';
@@ -19,7 +19,7 @@ import { formatMoney } from '../../common/money.util';
 	imports: [CommonModule, ReactiveFormsModule],
 	templateUrl: './cr-detail.component.html',
 })
-export class CrDetailComponent implements OnInit {
+export class CrDetailComponent implements OnChanges {
 	@Input() id!: string;
 
 	state: ViewState<CrDetail> = idle();
@@ -32,10 +32,19 @@ export class CrDetailComponent implements OnInit {
 	});
 
 	constructor(private readonly api: CrApiService, private readonly session: SessionService) {}
+    // ngOnInit(): void {
+	// 	if (this.id) {
+	// 		void this.load();
+	// 	}
+	// }
 
-	ngOnInit(): void {
+	// replaced ngOnInit with ngOnChanges to reload the component when the id changes
+	ngOnChanges(): void {
+	if (this.id) {
+		this.rejectControl.reset();
 		void this.load();
 	}
+}
 
 	async load(): Promise<void> {
 		this.state = loading();
