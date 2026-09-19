@@ -3,7 +3,10 @@
 ## 1. What I changed
 <!-- Grouped by task: bugs fixed and features implemented (component + template). -->
 Task 1: Fixed the diff logic so a quantity change is marked as changed, even when the unit price stays the same, also fixed the detail page’s permission checks so actions depend on both the request’s status and the current user’s permissions.
+
 Task 2: Added the status filter to the change request list. Selecting ALL shows every request, while selecting a specific status shows only matching requests. Kept the existing loading, empty, and error states.
+
+Task 3: Sorted the approval timeline from oldest to newest, added permission-aware action visiblity, added description comparisons to the diff logic and displayed descriptions in the Before and After columns so users can see description-only changes.
 
 -
 
@@ -32,10 +35,14 @@ Data comes from the provided mock API, and the current user’s permissions shou
 
 ## 5. Assumptions
 <!-- Where the requirements left room for interpretation, the calls you made and why. -->
+Since LineItem includes a description, I assumed it should be shown alongside quantity and unit price in the preview, I also treated a description change as a changed item, even when the quantity and price stay the same, so users can see changes that do not affect the total cost.
 
 -
 
 ## 6. Where I used AI
+I used AI to understand how to update the HTML preview table to show item descriptions alongside quantity and unit price, and to help apply that change.
+
+
 -
 
 ## 7. What I'd improve with more time

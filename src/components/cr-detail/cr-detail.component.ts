@@ -59,17 +59,18 @@ export class CrDetailComponent implements OnInit {
 		return this.detail?.audit.slice().sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime()) ?? [];
 	}
 
-	/** Whether the current user may approve the loaded CR. */
-	get canApprove(): boolean {
-		// NOTE: this only looks at the CR status. The UI must also respect the user's permissions.
-		// Second bug here: it doesn't check the user's policies.
-		return this.detail?.status === 'PENDING_APPROVAL' && this.session.user?.policies.includes('cr_a_o');
-	}
+    // NOTE: this only looks at the CR status. The UI must also respect the user's permissions.
+	// Second bug here: it doesn't check the user's policies.
+	// 19/9 commit: permission-aware action visibility
+    get canApprove(): boolean {
+        return this.detail?.status === 'PENDING_APPROVAL' && ['cr_a_u', 'cr_a_w', 'cr_a_o'].some(
+        policy => this.session.user.policies.includes(policy)
+    );
+    }
 
-	get canReject(): boolean {
-		return this.detail?.status === 'PENDING_APPROVAL';
-	}
-
+    get canReject(): boolean {
+        return this.canApprove;
+   }
 	fmt(amount: number): string {
 		return this.detail ? formatMoney(amount, this.detail.currency) : String(amount);
 	}
