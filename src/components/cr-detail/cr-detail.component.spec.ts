@@ -134,4 +134,36 @@ describe('CrDetailComponent', () => {
 		expect(approveSpy).not.toHaveBeenCalled();
 		expect(rejectSpy).not.toHaveBeenCalled();
 	});
+
+	it.each([
+		'DRAFT',
+		'SUBMITTED',
+		'APPROVED',
+		'APPLIED',
+		'REJECTED',
+		'CANCELLED',
+	] as const)('blocks actions for a request with status %s', async (status) => {
+		const fixture = await render(users.approver, 'CR-1');
+		const component = fixture.componentInstance;
+		const page: HTMLElement = fixture.nativeElement;
+		const api = TestBed.inject(CrApiService);
+		const approveSpy = jest.spyOn(api, 'approve');
+		const rejectSpy = jest.spyOn(api, 'reject');
+
+		component.state = {
+			status: 'loaded',
+			data: { ...component.detail!, status },
+		};
+		component.rejectControl.setValue('The quantity is too high.');
+		fixture.detectChanges();
+
+		expect(page.querySelector<HTMLButtonElement>('.cr-actions__approve')!.disabled).toBe(true);
+		expect(page.querySelector('.cr-actions__reject')).toBeNull();
+
+		await component.approve();
+		await component.reject();
+
+		expect(approveSpy).not.toHaveBeenCalled();
+		expect(rejectSpy).not.toHaveBeenCalled();
+	});
 });
