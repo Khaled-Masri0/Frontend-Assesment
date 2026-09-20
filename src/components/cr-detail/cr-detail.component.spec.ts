@@ -166,4 +166,156 @@ describe('CrDetailComponent', () => {
 		expect(approveSpy).not.toHaveBeenCalled();
 		expect(rejectSpy).not.toHaveBeenCalled();
 	});
+
+	it.each(['approve', 'reject'] as const)(
+		'disables buttons and prevents duplicate calls while %s is pending',
+		async (action) => {
+			const fixture = await render(users.approver, 'CR-1');
+			const component = fixture.componentInstance;
+			const page: HTMLElement = fixture.nativeElement;
+			const api = TestBed.inject(CrApiService);
+			const approveSpy = jest.spyOn(api, 'approve');
+			const rejectSpy = jest.spyOn(api, 'reject');
+
+			const reasonInput = page.querySelector<HTMLTextAreaElement>('.cr-actions__reason')!;
+			reasonInput.value = 'The quantity is too high.';
+			reasonInput.dispatchEvent(new Event('input'));
+			fixture.detectChanges();
+
+			const approveBtn = page.querySelector<HTMLButtonElement>('.cr-actions__approve')!;
+			const rejectBtn = page.querySelector<HTMLButtonElement>('.cr-actions__reject-btn')!;
+			const actionBtn = action === 'approve' ? approveBtn : rejectBtn;
+
+			expect(approveBtn.disabled).toBe(false);
+			expect(rejectBtn.disabled).toBe(false);
+
+			jest.useFakeTimers();
+			try {
+				api.latencyMs = 1000;
+
+				actionBtn.click();
+				fixture.detectChanges();
+
+				expect(approveBtn.disabled).toBe(true);
+				expect(rejectBtn.disabled).toBe(true);
+
+				void component.approve();
+				void component.reject();
+
+				expect(approveSpy).toHaveBeenCalledTimes(action === 'approve' ? 1 : 0);
+				expect(rejectSpy).toHaveBeenCalledTimes(action === 'reject' ? 1 : 0);
+
+				await jest.advanceTimersByTimeAsync(999);
+				fixture.detectChanges();
+
+				expect(approveBtn.disabled).toBe(true);
+				expect(rejectBtn.disabled).toBe(true);
+				expect(page.querySelector('.cr-status')!.textContent!.trim()).toBe('PENDING_APPROVAL');
+
+				await jest.advanceTimersByTimeAsync(1);
+				fixture.detectChanges();
+
+				expect(page.querySelector('.cr-status')!.textContent!.trim())
+					.toBe(action === 'approve' ? 'APPROVED' : 'REJECTED');
+				expect(component.submitting).toBe(false);
+				expect(approveSpy).toHaveBeenCalledTimes(action === 'approve' ? 1 : 0);
+				expect(rejectSpy).toHaveBeenCalledTimes(action === 'reject' ? 1 : 0);
+			} finally {
+				jest.useRealTimers();
+			}
+		},
+	);
+
+	it.each(['approve', 'reject'] as const)(
+		'shows an error and refreshes the status when %s fails',
+		async (action) => {
+			const fixture = await render(users.approver, 'CR-1');
+			const component = fixture.componentInstance;
+			const page: HTMLElement = fixture.nativeElement;
+			const api = TestBed.inject(CrApiService);
+			const refreshSpy = jest.spyOn(api, 'getChangeRequest');
+
+			const reasonInput = page.querySelector<HTMLTextAreaElement>('.cr-actions__reason')!;
+			reasonInput.value = 'The quantity is too high.';
+			reasonInput.dispatchEvent(new Event('input'));
+			fixture.detectChanges();
+
+			const selector = action === 'approve' ? '.cr-actions__approve' : '.cr-actions__reject-btn';
+			const actionBtn = page.querySelector<HTMLButtonElement>(selector)!;
+
+			jest.useFakeTimers();
+			try {
+				api.failNext = true;
+
+				actionBtn.click();
+				await jest.runAllTimersAsync();
+				fixture.detectChanges();
+
+				expect(page.querySelector('.cr-actions__error')!.textContent).toContain('Network error');
+				expect(refreshSpy).toHaveBeenCalledTimes(1);
+				expect(refreshSpy).toHaveBeenCalledWith(users.approver, 'CR-1');
+				expect(page.querySelector('.cr-status')!.textContent!.trim())
+					.toBe(action === 'approve' ? 'APPROVED' : 'REJECTED');
+				expect(page.querySelector<HTMLButtonElement>('.cr-actions__approve')!.disabled).toBe(true);
+				expect(page.querySelector('.cr-actions__reject')).toBeNull();
+				expect(component.submitting).toBe(false);
+			} finally {
+				jest.useRealTimers();
+			}
+		},
+	);
+
+	it.each(['approve', 'reject'] as const)(
+		'shows a retryable load error when %s recovery fails',
+		async (action) => {
+			const fixture = await render(users.approver, 'CR-1');
+			const component = fixture.componentInstance;
+			const page: HTMLElement = fixture.nativeElement;
+			const api = TestBed.inject(CrApiService);
+			const refreshSpy = jest.spyOn(api, 'getChangeRequest')
+				.mockImplementationOnce(() => new Promise((_, reject) => {
+					setTimeout(() => reject(new Error('Recovery failed')), 0);
+				}));
+
+			const reasonInput = page.querySelector<HTMLTextAreaElement>('.cr-actions__reason')!;
+			reasonInput.value = 'The quantity is too high.';
+			reasonInput.dispatchEvent(new Event('input'));
+			fixture.detectChanges();
+
+			const selector = action === 'approve' ? '.cr-actions__approve' : '.cr-actions__reject-btn';
+			const actionBtn = page.querySelector<HTMLButtonElement>(selector)!;
+
+			jest.useFakeTimers();
+			try {
+				api.failNext = true;
+
+				actionBtn.click();
+				await jest.runAllTimersAsync();
+				fixture.detectChanges();
+
+				expect(page.querySelector('.cr-detail__error')!.textContent)
+					.toContain('Could not confirm the request status');
+				expect(page.querySelector('.cr-actions')).toBeNull();
+				expect(component.submitting).toBe(false);
+				expect(refreshSpy).toHaveBeenCalledTimes(1);
+
+				const retryBtn = page.querySelector<HTMLButtonElement>('.cr-detail__error button')!;
+				retryBtn.click();
+				fixture.detectChanges();
+
+				expect(page.querySelector('.cr-detail__loading')).not.toBeNull();
+
+				await jest.runAllTimersAsync();
+				fixture.detectChanges();
+
+				expect(refreshSpy).toHaveBeenCalledTimes(2);
+				expect(page.querySelector('.cr-detail__error')).toBeNull();
+				expect(page.querySelector('.cr-actions__error')).toBeNull();
+				expect(page.querySelector('.cr-status')!.textContent!.trim())
+					.toBe(action === 'approve' ? 'APPROVED' : 'REJECTED');
+			} finally {
+				jest.useRealTimers();
+			}
+		},
+	);
 });

@@ -30,4 +30,38 @@ describe('CrListComponent', () => {
 		expect(fixture.nativeElement.querySelector('.cr-list__empty')).not.toBeNull();
 		expect(fixture.nativeElement.querySelector('.cr-list__table')).toBeNull();
 	});
+
+	it('filters rows by status and restores them when ALL is selected', async () => {
+		const fixture = await render(users.approver);
+		const page: HTMLElement = fixture.nativeElement;
+		const filter = page.querySelector<HTMLSelectElement>('.cr-list__filter')!;
+
+		expect(page.querySelectorAll('.cr-list__row')).toHaveLength(3);
+
+		filter.value = 'PENDING_APPROVAL';
+		filter.dispatchEvent(new Event('change'));
+		fixture.detectChanges();
+
+		const rows = page.querySelectorAll('.cr-list__row');
+		expect(rows).toHaveLength(1);
+		expect(rows[0].querySelector('td')!.textContent!.trim()).toBe('CR-1');
+		expect(rows[0].querySelector('.cr-status')!.textContent!.trim()).toBe('PENDING_APPROVAL');
+
+		filter.value = 'CANCELLED';
+		filter.dispatchEvent(new Event('change'));
+		fixture.detectChanges();
+
+		expect(page.querySelectorAll('.cr-list__row')).toHaveLength(0);
+		expect(page.querySelector('.cr-list__table')).toBeNull();
+		expect(page.querySelector('.cr-list__empty')!.textContent)
+			.toContain('No change requests match this status.');
+
+		filter.value = 'ALL';
+		filter.dispatchEvent(new Event('change'));
+		fixture.detectChanges();
+
+		expect(page.querySelectorAll('.cr-list__row')).toHaveLength(3);
+		expect(page.querySelector('.cr-list__table')).not.toBeNull();
+		expect(page.querySelector('.cr-list__empty')).toBeNull();
+	});
 });
