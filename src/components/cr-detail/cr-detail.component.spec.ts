@@ -318,4 +318,17 @@ describe('CrDetailComponent', () => {
 			}
 		},
 	);
+
+	it('renders the timeline from oldest to newest', async () => {
+		const fixture = await render(users.approver, 'CR-1');
+		const page: HTMLElement = fixture.nativeElement;
+		const actions = Array.from(page.querySelectorAll('.cr-timeline__action'))
+			.map((entry) => entry.textContent!.trim());
+
+		expect(actions).toEqual([
+			'CREATE',
+			'SUBMIT',
+			'SEND_FOR_APPROVAL',
+		]);
+	});
 });
