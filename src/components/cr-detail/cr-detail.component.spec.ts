@@ -3,6 +3,7 @@ import { CrDetailComponent } from './cr-detail.component';
 import { SessionService } from '../../session/session.service';
 import { users } from '../../api/fixtures';
 import { ReqUser } from '../../models/cr.models';
+import { CrApiService } from '../../api/cr-api.service';
 
 const flush = () => new Promise((r) => setTimeout(r, 0));
 
@@ -117,5 +118,20 @@ describe('CrDetailComponent', () => {
 		fixture.detectChanges();
 
 		expect(rejectBtn.disabled).toBe(true);
+	});
+
+	it('blocks action API calls for a read-only viewer', async () => {
+		const fixture = await render(users.viewer, 'CR-1');
+		const api = TestBed.inject(CrApiService);
+		const approveSpy = jest.spyOn(api, 'approve');
+		const rejectSpy = jest.spyOn(api, 'reject');
+
+		fixture.componentInstance.rejectControl.setValue('The quantity is too high.');
+
+		await fixture.componentInstance.approve();
+		await fixture.componentInstance.reject();
+
+		expect(approveSpy).not.toHaveBeenCalled();
+		expect(rejectSpy).not.toHaveBeenCalled();
 	});
 });
